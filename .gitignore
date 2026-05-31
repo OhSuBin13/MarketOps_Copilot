@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build and test outputs
+dist/
+**/dist/
+coverage/
+**/coverage/
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# Local environment
+.env
+.env.local
+.DS_Store
+npm-debug.log*
+*.log
+.turbo/
+.cache/
+postgres_data/

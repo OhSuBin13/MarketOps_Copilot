@@ -1,0 +1,15 @@
+.git
+.github
+
+node_modules
+**/node_modules
+dist
+**/dist
+coverage
+**/coverage
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+.env
+*.log
+postgres_data

@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MarketDocumentType {
+  NEWS       @map("news")
+  DISCLOSURE @map("disclosure")
+}
+
+enum MarketEventType {
+  PRICE_SPIKE   @map("price_spike")
+  VOLUME_SPIKE  @map("volume_spike")
+  KEYWORD_ALERT @map("keyword_alert")
+}
+
+enum MarketEventSeverity {
+  LOW      @map("low")
+  MEDIUM   @map("medium")
+  HIGH     @map("high")
+  CRITICAL @map("critical")
+}
+
+enum MarketEventStatus {
+  OPEN         @map("open")
+  ACKNOWLEDGED @map("acknowledged")
+  RESOLVED     @map("resolved")
+}
+
+enum IngestionJobStatus {
+  QUEUED    @map("queued")
+  RUNNING   @map("running")
+  SUCCEEDED @map("succeeded")
+  FAILED    @map("failed")
+}
+
+model Stock {
+  id        String   @id @default(uuid()) @db.Uuid
+  symbol    String   @unique @db.VarChar(20)
+  name      String   @db.VarChar(120)
+  market    String   @db.VarChar(50)
+  sector    String?  @db.VarChar(120)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  prices    PriceDaily[]
+  documents MarketDocument[]
+  events    MarketEvent[]
+  reports   AiReport[]
+
+  @@map("stocks")
+}
+
+model PriceDaily {
+  id         String   @id @default(uuid()) @db.Uuid
+  stockId    String   @map("stock_id") @db.Uuid
+  tradeDate  DateTime @map("trade_date") @db.Date
+  openPrice  Decimal  @map("open_price") @db.Decimal(18, 4)
+  highPrice  Decimal  @map("high_price") @db.Decimal(18, 4)
+  lowPrice   Decimal  @map("low_price") @db.Decimal(18, 4)
+  closePrice Decimal  @map("close_price") @db.Decimal(18, 4)
+  volume     BigInt
+  source     String?  @db.VarChar(80)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  stock Stock @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@unique([stockId, tradeDate])
+  @@index([tradeDate])
+  @@index([stockId, tradeDate(sort: Desc)])
+  @@map("price_daily")
+}
+
+model MarketDocument {
+  id              String             @id @default(uuid()) @db.Uuid
+  stockId          String?            @map("stock_id") @db.Uuid
+  documentType     MarketDocumentType @map("document_type")
+  title           String             @db.VarChar(500)
+  body            String             @db.Text
+  source          String             @db.VarChar(120)
+  sourceUrl       String             @map("source_url") @db.VarChar(1000)
+  publishedAt     DateTime           @map("published_at")
+  contentHash     String             @unique @map("content_hash") @db.VarChar(128)
+  embeddingStatus String             @default("pending") @map("embedding_status") @db.VarChar(40)
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  stock Stock? @relation(fields: [stockId], references: [id], onDelete: SetNull)
+
+  @@index([stockId, publishedAt(sort: Desc)])
+  @@index([publishedAt])
+  @@map("market_documents")
+}
+
+model MarketEvent {
+  id                  String              @id @default(uuid()) @db.Uuid
+  stockId             String              @map("stock_id") @db.Uuid
+  eventType           MarketEventType     @map("event_type")
+  severity            MarketEventSeverity
+  detectedAt          DateTime            @default(now()) @map("detected_at")
+  metricValue         Decimal?            @map("metric_value") @db.Decimal(18, 6)
+  baselineValue       Decimal?            @map("baseline_value") @db.Decimal(18, 6)
+  summary             String              @db.Text
+  evidenceDocumentIds Json                @default("[]") @map("evidence_document_ids")
+  status              MarketEventStatus   @default(OPEN)
+
+  stock   Stock      @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  reports AiReport[]
+
+  @@index([stockId, detectedAt(sort: Desc)])
+  @@index([eventType, detectedAt(sort: Desc)])
+  @@index([severity, detectedAt(sort: Desc)])
+  @@map("market_events")
+}
+
+model AiReport {
+  id         String   @id @default(uuid()) @db.Uuid
+  stockId    String   @map("stock_id") @db.Uuid
+  eventId    String?  @map("event_id") @db.Uuid
+  prompt     String   @db.Text
+  reportBody String   @map("report_body") @db.Text
+  sourceIds  Json     @default("[]") @map("source_ids")
+  modelName  String   @map("model_name") @db.VarChar(120)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  stock Stock        @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  event MarketEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([stockId, createdAt(sort: Desc)])
+  @@index([eventId])
+  @@map("ai_reports")
+}
+
+model IngestionJob {
+  id           String             @id @default(uuid()) @db.Uuid
+  jobType      String             @map("job_type") @db.VarChar(80)
+  status       IngestionJobStatus @default(QUEUED)
+  parameters   Json?
+  startedAt    DateTime?          @map("started_at")
+  finishedAt   DateTime?          @map("finished_at")
+  errorMessage String?            @map("error_message") @db.Text
+  createdAt    DateTime           @default(now()) @map("created_at")
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([jobType, createdAt(sort: Desc)])
+  @@map("ingestion_jobs")
+}
