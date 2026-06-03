@@ -13,6 +13,7 @@ coverage/
 # Local environment
 .env
 .env.local
+.env.example
 .DS_Store
 npm-debug.log*
 *.log

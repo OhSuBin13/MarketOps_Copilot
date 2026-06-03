@@ -39,7 +39,10 @@ Copy `.env.example` to `.env` for local development.
 PORT=3000
 DATABASE_URL=postgresql://marketops:marketops@localhost:5432/marketops?schema=public
 REDIS_URL=redis://localhost:6379
+DART_API_KEY=
 ```
+
+`DART_API_KEY` is required only when OpenDART disclosure ingestion is enabled.
 
 ## Database Draft
 
@@ -67,7 +70,69 @@ The first migration is included under `apps/api/prisma/migrations`.
 - `GET /ops/health`
 - `GET /ops/metrics`
 
-Week 1 endpoints return documented placeholder responses. Data ingestion, real DB-backed reads, event detection, Redis caching, and AI report generation are planned for later MVP weeks.
+## Data Ingestion
+
+`POST /ingestion/jobs` now creates a persisted job, runs the requested ingestion synchronously, and updates the job to `succeeded` or `failed`. Re-running the same job is idempotent for stored rows:
+
+- Stocks are upserted by `symbol`.
+- Daily OHLCV prices are upserted by `(stockId, tradeDate)`.
+- News and disclosure documents are upserted by `contentHash`.
+
+Supported public sources:
+
+- Daily prices: Stooq CSV endpoint (`https://stooq.com/q/d/l/`)
+- News: Google News RSS search (`https://news.google.com/rss/search`)
+- Disclosures: OpenDART disclosure search (`https://opendart.fss.or.kr/api/list.json`, requires `DART_API_KEY`)
+
+Price ingestion example:
+
+```bash
+curl -X POST http://localhost:3000/ingestion/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jobType": "price_daily",
+    "parameters": {
+      "stocks": [
+        {
+          "symbol": "005930",
+          "name": "Samsung Electronics",
+          "market": "KRX",
+          "stooqSymbol": "005930.KR"
+        }
+      ],
+      "from": "2026-05-01",
+      "to": "2026-05-30"
+    }
+  }'
+```
+
+News and disclosure ingestion example:
+
+```bash
+curl -X POST http://localhost:3000/ingestion/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jobType": "market_documents",
+    "parameters": {
+      "stocks": [
+        {
+          "symbol": "005930",
+          "name": "Samsung Electronics",
+          "market": "KRX",
+          "dartCorpCode": "00126380",
+          "newsQuery": "삼성전자"
+        }
+      ],
+      "from": "2026-05-01",
+      "to": "2026-05-30",
+      "includeNews": true,
+      "includeDisclosures": true,
+      "limit": 20
+    }
+  }'
+```
+
+If `dartCorpCode` is omitted, OpenDART pages are filtered by the returned `stock_code`; for wider date windows, pass `dartCorpCode` for more precise disclosure collection.
 
 ## Verification
 

@@ -13,23 +13,34 @@ export class IngestionController {
   @Post("jobs")
   @ApiBody({ type: CreateIngestionJobDto })
   @ApiCreatedResponse({
-    description: "Create a placeholder ingestion job request.",
+    description: "Create and run a market data ingestion job.",
     schema: {
       example: {
         data: {
           id: "44444444-4444-4444-8444-444444444444",
-          jobType: IngestionJobType.STOCK_MASTER,
-          status: "queued",
+          jobType: IngestionJobType.PRICE_DAILY,
+          status: "succeeded",
           parameters: {
-            symbols: ["005930", "000660"]
+            symbols: ["005930"],
+            from: "2026-05-01",
+            to: "2026-05-30"
           },
-          createdAt: "2026-05-30T00:00:00.000Z"
+          startedAt: "2026-05-30T00:00:00.000Z",
+          finishedAt: "2026-05-30T00:00:01.000Z",
+          errorMessage: null,
+          createdAt: "2026-05-30T00:00:00.000Z",
+          summary: {
+            stocksUpserted: 1,
+            pricesUpserted: 20,
+            documentsUpserted: 0,
+            sourceErrors: []
+          }
         },
-        meta: { source: "week_1_placeholder" }
+        meta: { source: "database" }
       }
     }
   })
-  createJob(@Body() dto: CreateIngestionJobDto): Record<string, unknown> {
+  createJob(@Body() dto: CreateIngestionJobDto): Promise<Record<string, unknown>> {
     return this.ingestionService.createJob(dto);
   }
 }
